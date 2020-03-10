@@ -275,9 +275,7 @@ WorkerGetNodeWithName(const char *hostname)
 	HASH_SEQ_STATUS status;
 	HTAB *workerNodeHash = GetWorkerNodeHash();
 
-	hash_seq_init(&status, workerNodeHash);
-
-	while ((workerNode = hash_seq_search(&status)) != NULL)
+	foreach_htab(workerNode, &status, workerNodeHash)
 	{
 		int nameCompare = strncmp(workerNode->workerName, hostname, WORKER_LENGTH);
 		if (nameCompare == 0)
@@ -349,9 +347,8 @@ FilterActiveNodeListFunc(LOCKMODE lockMode, bool (*checkFunction)(WorkerNode *))
 	}
 
 	HTAB *workerNodeHash = GetWorkerNodeHash();
-	hash_seq_init(&status, workerNodeHash);
 
-	while ((workerNode = hash_seq_search(&status)) != NULL)
+	foreach_htab(workerNode, &status, workerNodeHash)
 	{
 		if (workerNode->isActive && checkFunction(workerNode))
 		{
@@ -487,9 +484,7 @@ PrimaryNodesNotInList(List *currentList)
 	WorkerNode *workerNode = NULL;
 	HASH_SEQ_STATUS status;
 
-	hash_seq_init(&status, workerNodeHash);
-
-	while ((workerNode = hash_seq_search(&status)) != NULL)
+	foreach_htab(workerNode, &status, workerNodeHash)
 	{
 		if (ListMember(currentList, workerNode))
 		{

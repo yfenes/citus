@@ -34,6 +34,7 @@
 #include "distributed/citus_ruleutils.h"
 #include "distributed/function_utils.h"
 #include "distributed/foreign_key_relationship.h"
+#include "distributed/hash_helpers.h"
 #include "distributed/listutils.h"
 #include "distributed/master_metadata_utility.h"
 #include "distributed/metadata/pg_dist_object.h"
@@ -3426,9 +3427,7 @@ InvalidateDistTableCache(void)
 	CitusTableCacheEntry *cacheEntry = NULL;
 	HASH_SEQ_STATUS status;
 
-	hash_seq_init(&status, DistTableCacheHash);
-
-	while ((cacheEntry = (CitusTableCacheEntry *) hash_seq_search(&status)) != NULL)
+	foreach_htab(cacheEntry, &status, DistTableCacheHash)
 	{
 		cacheEntry->isValid = false;
 	}
@@ -3444,9 +3443,7 @@ InvalidateDistObjectCache(void)
 	DistObjectCacheEntry *cacheEntry = NULL;
 	HASH_SEQ_STATUS status;
 
-	hash_seq_init(&status, DistObjectCacheHash);
-
-	while ((cacheEntry = (DistObjectCacheEntry *) hash_seq_search(&status)) != NULL)
+	foreach_htab(cacheEntry, &status, DistObjectCacheHash)
 	{
 		cacheEntry->isValid = false;
 	}
@@ -3463,9 +3460,7 @@ FlushDistTableCache(void)
 	CitusTableCacheEntry *cacheEntry = NULL;
 	HASH_SEQ_STATUS status;
 
-	hash_seq_init(&status, DistTableCacheHash);
-
-	while ((cacheEntry = (CitusTableCacheEntry *) hash_seq_search(&status)) != NULL)
+	foreach_htab(cacheEntry, &status, DistTableCacheHash)
 	{
 		ResetCitusTableCacheEntry(cacheEntry);
 	}

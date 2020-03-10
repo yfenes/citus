@@ -54,9 +54,7 @@ get_adjacency_list_wait_graph(PG_FUNCTION_ARGS)
 	HTAB *adjacencyList = BuildAdjacencyListsForWaitGraph(waitGraph);
 
 	/* iterate on all nodes */
-	hash_seq_init(&status, adjacencyList);
-
-	while ((transactionNode = (TransactionNode *) hash_seq_search(&status)) != 0)
+	foreach_htab(transactionNode, &status, adjacencyList)
 	{
 		memset(values, 0, sizeof(values));
 		memset(isNulls, false, sizeof(isNulls));

@@ -25,6 +25,7 @@
 #include "distributed/commands.h"
 #include "distributed/commands/utility_hook.h"
 #include "distributed/connection_management.h"
+#include "distributed/hash_helpers.h"
 #include "distributed/maintenanced.h"
 #include "distributed/master_protocol.h"
 #include "distributed/master_metadata_utility.h"
@@ -538,9 +539,7 @@ PrimaryNodeForGroup(int32 groupId, bool *groupContainsNodes)
 	HASH_SEQ_STATUS status;
 	HTAB *workerNodeHash = GetWorkerNodeHash();
 
-	hash_seq_init(&status, workerNodeHash);
-
-	while ((workerNode = hash_seq_search(&status)) != NULL)
+	foreach_htab(workerNode, &status, workerNodeHash)
 	{
 		int32 workerNodeGroupId = workerNode->groupId;
 		if (workerNodeGroupId != groupId)
@@ -1021,9 +1020,7 @@ CountPrimariesWithMetadata(void)
 	HASH_SEQ_STATUS status;
 	HTAB *workerNodeHash = GetWorkerNodeHash();
 
-	hash_seq_init(&status, workerNodeHash);
-
-	while ((workerNode = hash_seq_search(&status)) != NULL)
+	foreach_htab(workerNode, &status, workerNodeHash)
 	{
 		if (workerNode->hasMetadata && NodeIsPrimary(workerNode))
 		{
