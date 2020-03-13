@@ -70,7 +70,7 @@ int ExecutorLevel = 0;
 /* local function forward declarations */
 static Relation StubRelation(TupleDesc tupleDescriptor);
 static bool AlterTableConstraintCheck(QueryDesc *queryDesc);
-static bool IsValidLocalReferenceTableJoinPlan(PlannedStmt *plan);
+static bool IsLocalReferenceTableJoinPlan(PlannedStmt *plan);
 static List * FindCitusCustomScanStates(PlanState *planState);
 static bool CitusCustomScanStateWalker(PlanState *planState,
 									   List **citusCustomScanStates);
@@ -149,19 +149,35 @@ CitusExecutorRun(QueryDesc *queryDesc,
 
 		if (CitusHasBeenLoaded())
 		{
-			if (IsValidLocalReferenceTableJoinPlan(queryDesc->plannedstmt) &&
-				IsMultiStatementTransaction())
+			if (IsLocalReferenceTableJoinPlan(queryDesc->plannedstmt))
 			{
-				/*
-				 * Currently we don't support this to avoid problems with tuple
-				 * visibility, locking, etc. For example, change to the reference
-				 * table can go through a MultiConnection, which won't be visible
-				 * to the locally planned queries.
-				 */
-				ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-								errmsg("cannot join local tables and reference tables in "
-									   "a transaction block, udf block, or distributed "
-									   "CTE subquery")));
+				if (!CanUseCoordinatorLocalTablesWithReferenceTables())
+				{
+					/*
+					 * Error out if coordinator does not have reference table
+					 * placements
+					 */
+					ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+									errmsg(
+										"cannot join local tables reference tables that"
+										"are not replicated to coordinator"),
+									errhint("use master_add_node for coordinator node")));
+				}
+
+				if (IsMultiStatementTransaction())
+				{
+					/*
+					 * Currently we don't support this to avoid problems with tuple
+					 * visibility, locking, etc. For example, change to the reference
+					 * table can go through a MultiConnection, which won't be visible
+					 * to the locally planned queries.
+					 */
+					ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+									errmsg(
+										"cannot join local tables and reference tables in "
+										"a transaction block, udf block, or distributed "
+										"CTE subquery")));
+				}
 			}
 		}
 
@@ -742,25 +758,16 @@ AlterTableConstraintCheck(QueryDesc *queryDesc)
 
 
 /*
- * IsValidLocalReferenceTableJoinPlan returns true if the given plan joins local tables
+ * IsLocalReferenceTableJoinPlan returns true if the given plan joins local tables
  * with reference table shards.
  *
  * This should be consistent with IsLocalReferenceTableJoin() in distributed_planner.c.
  */
 static bool
-IsValidLocalReferenceTableJoinPlan(PlannedStmt *plan)
+IsLocalReferenceTableJoinPlan(PlannedStmt *plan)
 {
 	bool hasReferenceTable = false;
 	bool hasLocalTable = false;
-
-	/*
-	 * Check if we are in the coordinator and coordinator can have reference
-	 * table placements
-	 */
-	if (!CanUseCoordinatorLocalTablesWithReferenceTables())
-	{
-		return false;
-	}
 
 	/*
 	 * No need to check FOR UPDATE/SHARE or modifying subqueries, those have
