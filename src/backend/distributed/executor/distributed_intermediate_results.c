@@ -398,7 +398,7 @@ static Tuplestorestate *
 ExecuteSelectTasksIntoTupleStore(List *taskList, TupleDesc resultDescriptor,
 								 bool errorOnAnyFailure)
 {
-	bool hasReturning = true;
+	bool expectResults = true;
 	int targetPoolSize = MaxAdaptiveExecutorPoolSize;
 	bool randomAccess = true;
 	bool interTransactions = false;
@@ -412,7 +412,7 @@ ExecuteSelectTasksIntoTupleStore(List *taskList, TupleDesc resultDescriptor,
 														 work_mem);
 
 	ExecuteTaskListExtended(ROW_MODIFY_READONLY, taskList, resultDescriptor,
-							resultStore, hasReturning, targetPoolSize, &xactProperties,
+							resultStore, expectResults, targetPoolSize, &xactProperties,
 							NIL);
 
 	return resultStore;

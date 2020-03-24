@@ -203,6 +203,8 @@ CreateModifyPlan(Query *originalQuery, Query *query,
 	DistributedPlan *distributedPlan = CitusMakeNode(DistributedPlan);
 	bool multiShardQuery = false;
 
+	Assert(originalQuery->commandType != CMD_SELECT);
+
 	distributedPlan->modLevel = RowModifyLevelForQuery(query);
 
 	distributedPlan->planningError = ModifyQuerySupported(query, originalQuery,
@@ -233,13 +235,8 @@ CreateModifyPlan(Query *originalQuery, Query *query,
 	distributedPlan->workerJob = job;
 	distributedPlan->masterQuery = NULL;
 	distributedPlan->routerExecutable = true;
-	distributedPlan->hasReturning = false;
+	distributedPlan->expectResults = list_length(originalQuery->returningList) > 0;
 	distributedPlan->targetRelationId = ResultRelationOidForQuery(query);
-
-	if (list_length(originalQuery->returningList) > 0)
-	{
-		distributedPlan->hasReturning = true;
-	}
 
 	distributedPlan->fastPathRouterPlan =
 		plannerRestrictionContext->fastPathRestrictionContext->fastPathRouterQuery;
@@ -278,7 +275,7 @@ CreateSingleTaskRouterPlan(DistributedPlan *distributedPlan, Query *originalQuer
 	distributedPlan->workerJob = job;
 	distributedPlan->masterQuery = NULL;
 	distributedPlan->routerExecutable = true;
-	distributedPlan->hasReturning = false;
+	distributedPlan->expectResults = query->commandType == CMD_SELECT;
 }
 
 
@@ -1409,6 +1406,8 @@ TargetEntryChangesValue(TargetEntry *targetEntry, Var *column, FromExpr *joinTre
 static Job *
 RouterInsertJob(Query *originalQuery)
 {
+	Assert(originalQuery->commandType == CMD_INSERT);
+
 	bool isMultiRowInsert = IsMultiRowInsert(originalQuery);
 	if (isMultiRowInsert)
 	{

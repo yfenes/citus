@@ -237,8 +237,8 @@ ExecuteLocalTaskList(CitusScanState *scanState, List *taskList)
  */
 uint64
 ExtractAndExecuteLocalAndRemoteTasks(CitusScanState *scanState,
-									 List *taskList, RowModifyLevel rowModifyLevel, bool
-									 hasReturning)
+									 List *taskList, RowModifyLevel rowModifyLevel,
+									 bool hasReturning)
 {
 	uint64 processedRows = 0;
 	List *localTaskList = NIL;

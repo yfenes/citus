@@ -380,7 +380,7 @@ TryToDelegateFunctionCall(DistributedPlanningContext *planContext)
 	distributedPlan->workerJob = job;
 	distributedPlan->masterQuery = NULL;
 	distributedPlan->routerExecutable = true;
-	distributedPlan->hasReturning = false;
+	distributedPlan->expectResults = true;
 
 	/* worker will take care of any necessary locking, treat query as read-only */
 	distributedPlan->modLevel = ROW_MODIFY_READONLY;

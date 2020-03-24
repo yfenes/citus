@@ -337,8 +337,8 @@ typedef struct DistributedPlan
 	/* specifies nature of modifications in query */
 	RowModifyLevel modLevel;
 
-	/* specifies whether a DML command has a RETURNING */
-	bool hasReturning;
+	/* specifies whether DML command has a RETURNING or command is SELECT */
+	bool expectResults;
 
 	/* a router executable query is executed entirely on a worker */
 	bool routerExecutable;

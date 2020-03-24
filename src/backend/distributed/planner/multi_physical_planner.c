@@ -242,6 +242,7 @@ CreatePhysicalDistributedPlan(MultiTreeRoot *multiTree,
 	distributedPlan->masterQuery = masterQuery;
 	distributedPlan->routerExecutable = DistributedPlanRouterExecutable(distributedPlan);
 	distributedPlan->modLevel = ROW_MODIFY_READONLY;
+	distributedPlan->expectResults = true;
 
 	return distributedPlan;
 }
