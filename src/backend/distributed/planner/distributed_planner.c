@@ -761,7 +761,7 @@ InlineCtesAndCreateDistributedPlannedStmt(uint64 planId,
 	/* after inlining, we shouldn't have any inlinable CTEs */
 	Assert(!QueryTreeContainsInlinableCTE(copyOfOriginalQuery));
 
-	#if PG_VERSION_NUM < 120000
+#if PG_VERSION_NUM < 120000
 	Query *query = planContext->query;
 
 	/*
