@@ -73,6 +73,33 @@
 #include "utils/syscache.h"
 #include "utils/typcache.h"
 
+#include <execinfo.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static void print_trace(void);
+
+void
+print_trace(void)
+{
+	void *array[50];
+	size_t size;
+	char **strings;
+	size_t i;
+
+	size = backtrace(array, 50);
+	strings = backtrace_symbols(array, size);
+
+	elog(WARNING, "Obtained %zd stack frames.\n", size);
+
+	for (i = 0; i < size; i++)
+	{
+		elog(WARNING, "\t%s", strings[i]);
+	}
+
+	free(strings);
+}
+
 
 /* user configuration */
 int ReadFromSecondaries = USE_SECONDARY_NODES_NEVER;
@@ -760,6 +787,8 @@ LookupShardCacheEntry(int64 shardId)
 	if (recheck)
 	{
 		shardEntry = hash_search(DistShardCacheHash, &shardId, HASH_FIND, &foundInCache);
+
+		print_trace();
 
 		if (!foundInCache)
 		{
