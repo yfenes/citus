@@ -83,16 +83,13 @@ void
 print_trace(void)
 {
 	void *array[50];
-	size_t size;
-	char **strings;
-	size_t i;
 
-	size = backtrace(array, 50);
-	strings = backtrace_symbols(array, size);
+	size_t size = backtrace(array, 50);
+	char **strings = backtrace_symbols(array, size);
 
 	elog(WARNING, "Obtained %zd stack frames.\n", size);
 
-	for (i = 0; i < size; i++)
+	for (size_t i = 0; i < size; i++)
 	{
 		elog(WARNING, "\t%s", strings[i]);
 	}
@@ -788,10 +785,13 @@ LookupShardCacheEntry(int64 shardId)
 	{
 		shardEntry = hash_search(DistShardCacheHash, &shardId, HASH_FIND, &foundInCache);
 
-		print_trace();
-
 		if (!foundInCache)
 		{
+			if (shardId > 540010)
+			{
+				print_trace();
+			}
+
 			ereport(ERROR, (errmsg("could not find valid entry for shard "
 								   UINT64_FORMAT, shardId)));
 		}
@@ -3716,6 +3716,10 @@ LookupShardRelation(int64 shardId, bool missingOk)
 	HeapTuple heapTuple = systable_getnext(scanDescriptor);
 	if (!HeapTupleIsValid(heapTuple) && !missingOk)
 	{
+		if (shardId > 540010)
+		{
+			print_trace();
+		}
 		ereport(ERROR, (errmsg("could not find valid entry for shard "
 							   UINT64_FORMAT, shardId)));
 	}
