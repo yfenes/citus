@@ -2480,6 +2480,7 @@ ShardIdForTuple(CitusCopyDestReceiver *copyDest, Datum *columnValues, bool *colu
 	 * For reference table, this function blindly returns the tables single
 	 * shard.
 	 */
+	copyDest->tableMetadata = GetCitusTableCacheEntry(copyDest->distributedRelationId);
 	ShardInterval *shardInterval = FindShardInterval(partitionColumnValue,
 													 copyDest->tableMetadata);
 	if (shardInterval == NULL)
