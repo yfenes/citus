@@ -99,6 +99,7 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 #include "utils/memutils.h"
+#include "utils/inval.h"
 
 
 /* constant used in binary protocol */
@@ -2480,6 +2481,18 @@ ShardIdForTuple(CitusCopyDestReceiver *copyDest, Datum *columnValues, bool *colu
 	 * For reference table, this function blindly returns the tables single
 	 * shard.
 	 */
+	AcceptInvalidationMessages();
+	if (!copyDest->tableMetadata->isValid)
+	{
+		elog(ERROR, "cacheEntry invalidated");
+	}
+
+	if (copyDest->tableMetadata != GetCitusTableCacheEntry(
+			copyDest->distributedRelationId))
+	{
+		elog(ERROR, "invalid cache entry: %p", copyDest->tableMetadata);
+	}
+
 	ShardInterval *shardInterval = FindShardInterval(partitionColumnValue,
 													 copyDest->tableMetadata);
 	if (shardInterval == NULL)
