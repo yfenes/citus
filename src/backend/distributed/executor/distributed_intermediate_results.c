@@ -30,6 +30,7 @@
 #include "tcop/tcopprot.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/inval.h"
 
 
 /*
@@ -346,6 +347,11 @@ ExecutePartitionTaskList(List *taskList, CitusTableCacheEntry *targetRelation)
 	List *fragmentList = NIL;
 	TupleTableSlot *slot = MakeSingleTupleTableSlotCompat(resultDescriptor,
 														  &TTSOpsMinimalTuple);
+	AcceptInvalidationMessages();
+	if (!targetRelation->isValid)
+	{
+		elog(ERROR, "cacheEntry invalidated");
+	}
 	while (tuplestore_gettupleslot(resultStore, true, false, slot))
 	{
 		DistributedResultFragment *distributedResultFragment =
