@@ -216,7 +216,7 @@ EnsureReferenceTablesExistOnAllNodes(void)
 			StringInfo placementCopyCommand =
 				CopyShardPlacementToWorkerNodeQuery(sourceShardPlacement,
 													newWorkerNode,
-													TRANSFER_MODE_AUTOMATIC);
+													TRANSFER_MODE_PREFER_LOGICAL);
 			ExecuteCriticalRemoteCommand(connection, placementCopyCommand->data);
 			RemoteTransactionCommit(connection);
 		}
@@ -308,6 +308,7 @@ CopyShardPlacementToWorkerNodeQuery(ShardPlacement *sourceShardPlacement,
 	const char *transferModeString =
 		transferMode == TRANSFER_MODE_BLOCK_WRITES ? "block_writes" :
 		transferMode == TRANSFER_MODE_FORCE_LOGICAL ? "force_logical" :
+		transferMode == TRANSFER_MODE_PREFER_LOGICAL ? "prefer_logical" :
 		"auto";
 
 	appendStringInfo(queryString,
