@@ -863,16 +863,22 @@ static void
 EnsureLocalTableEmptyIfNecessary(Oid relationId, char distributionMethod,
 								 bool viaDepracatedAPI)
 {
-	if (viaDepracatedAPI)
-	{
-		EnsureLocalTableEmpty(relationId);
-	}
-	else if (distributionMethod != DISTRIBUTE_BY_HASH &&
-			 distributionMethod != DISTRIBUTE_BY_NONE)
-	{
-		EnsureLocalTableEmpty(relationId);
-	}
-	else if (!RegularTable(relationId))
+	/* we don't support copying local data via deprecated APIs */
+	bool shouldEnsureLocalTableEmpty = viaDepracatedAPI;
+
+	bool distributionMethodRequiresEmptyTable =
+		(distributionMethod != DISTRIBUTE_BY_HASH &&
+		 distributionMethod != DISTRIBUTE_BY_NONE);
+
+	/* we only support hash distributed tables and reference tables for initial data loading */
+	shouldEnsureLocalTableEmpty |= distributionMethodRequiresEmptyTable;
+
+	bool notRegularTable = !RegularTable(relationId);
+
+	/* we only support tables and partitioned tables for initial data loading */
+	shouldEnsureLocalTableEmpty |= notRegularTable;
+
+	if (shouldEnsureLocalTableEmpty)
 	{
 		EnsureLocalTableEmpty(relationId);
 	}
