@@ -46,6 +46,7 @@
 #include "tcop/dest.h"
 #include "tcop/pquery.h"
 #include "tcop/utility.h"
+#include "utils/builtins.h"
 #include "utils/snapmgr.h"
 #include "utils/memutils.h"
 
@@ -68,6 +69,9 @@ bool SortReturning = false;
  */
 int ExecutorLevel = 0;
 
+bool SaveExplainPlans = true;
+StringInfo SavedExplainPlan = NULL;
+
 
 /* local function forward declarations */
 static Relation StubRelation(TupleDesc tupleDescriptor);
@@ -75,6 +79,34 @@ static bool AlterTableConstraintCheck(QueryDesc *queryDesc);
 static List * FindCitusCustomScanStates(PlanState *planState);
 static bool CitusCustomScanStateWalker(PlanState *planState,
 									   List **citusCustomScanStates);
+
+
+static bool
+SaveQueryExplain(QueryDesc *queryDesc, int eflags)
+{
+	PlannedStmt *plannedStmt = queryDesc->plannedstmt;
+
+	return SaveExplainPlans &&
+			ExecutorLevel == 0 &&
+			!IsParallelWorker() &&
+			(eflags & EXEC_FLAG_EXPLAIN_ONLY) == 0 &&
+			!IsCitusPlan(plannedStmt->planTree);
+}
+
+
+PG_FUNCTION_INFO_V1(last_saved_plan);
+Datum
+last_saved_plan(PG_FUNCTION_ARGS)
+{
+	if (SavedExplainPlan == NULL)
+	{
+		PG_RETURN_NULL();
+	}
+	else
+	{
+		PG_RETURN_TEXT_P(cstring_to_text(SavedExplainPlan->data));
+	}
+}
 
 /*
  * CitusExecutorStart is the ExecutorStart_hook that gets called when
@@ -84,6 +116,12 @@ void
 CitusExecutorStart(QueryDesc *queryDesc, int eflags)
 {
 	PlannedStmt *plannedStmt = queryDesc->plannedstmt;
+
+	if (SaveQueryExplain(queryDesc, eflags))
+	{
+		queryDesc->instrument_options |= INSTRUMENT_TIMER;
+		queryDesc->instrument_options |= INSTRUMENT_BUFFERS;
+	}
 
 	/*
 	 * We cannot modify XactReadOnly on Windows because it is not
@@ -115,6 +153,22 @@ CitusExecutorStart(QueryDesc *queryDesc, int eflags)
 #endif
 	{
 		standard_ExecutorStart(queryDesc, eflags);
+	}
+
+	if (SaveQueryExplain(queryDesc, eflags))
+	{
+		/*
+		 * Set up to track total elapsed time in ExecutorRun.  Make sure the
+		 * space is allocated in the per-query context so it will go away at
+		 * ExecutorEnd.
+		 */
+		if (queryDesc->totaltime == NULL)
+		{
+
+			MemoryContext oldcxt = MemoryContextSwitchTo(queryDesc->estate->es_query_cxt);
+			queryDesc->totaltime = InstrAlloc(1, INSTRUMENT_ALL);
+			MemoryContextSwitchTo(oldcxt);
+		}
 	}
 }
 
@@ -223,6 +277,52 @@ CitusExecutorRun(QueryDesc *queryDesc,
 		PG_RE_THROW();
 	}
 	PG_END_TRY();
+}
+
+void
+CitusExecutorEnd(QueryDesc *queryDesc)
+{
+	if (!SaveQueryExplain(queryDesc, 0) ||
+		!queryDesc->totaltime)
+	{
+		standard_ExecutorEnd(queryDesc);
+		return;
+	}
+
+	/*
+	 * Make sure stats accumulation is done.  (Note: it's okay if several
+	 * levels of hook all do this.)
+	 */
+	InstrEndLoop(queryDesc->totaltime);
+
+	ExplainState *es = NewExplainState();
+
+	es->analyze = true;
+	es->verbose = true;
+	es->buffers = true;
+	es->timing = true;
+	es->summary = es->analyze;
+	es->format = EXPLAIN_FORMAT_TEXT;
+	es->settings = false;
+
+	ExplainBeginOutput(es);
+	ExplainPrintPlan(es, queryDesc);
+
+	if (es->costs)
+		ExplainPrintJITSummary(es, queryDesc);
+
+	ExplainEndOutput(es);
+
+	MemoryContext oldContext = MemoryContextSwitchTo(TopMemoryContext);
+
+	SavedExplainPlan = makeStringInfo();
+	appendStringInfoString(SavedExplainPlan, es->str->data);
+
+	MemoryContextSwitchTo(oldContext);
+
+	pfree(es->str->data);
+
+	standard_ExecutorEnd(queryDesc);
 }
 
 
