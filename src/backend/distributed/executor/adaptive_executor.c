@@ -3065,6 +3065,27 @@ TransactionStateMachine(WorkerSession *session)
 					TaskPlacementExecution *placementExecution = session->currentTask;
 					bool succeeded = true;
 
+					PGresult *planResult = NULL;
+					int execResult = ExecuteOptionalRemoteCommand(connection, "SELECT last_saved_plan();", &planResult);
+					if (execResult == RESPONSE_OKAY)
+					{
+						List *planList = ReadFirstColumnAsText(planResult);
+						StringInfo remotePlan = (StringInfo) linitial(planList);
+
+						StringInfo *savedPlan = &placementExecution->shardCommandExecution->task->savedPlan;
+						*savedPlan = makeStringInfo();
+						appendStringInfoString(*savedPlan, remotePlan->data);
+
+						PQclear(planResult);
+					}
+					else
+					{
+						elog(WARNING, "failed to fetch remote plan");
+					}
+
+
+					ClearResults(connection, false);
+
 					/*
 					 * Once we finished a task on a connection, we no longer
 					 * allow that connection to fail.

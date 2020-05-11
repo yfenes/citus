@@ -275,6 +275,8 @@ typedef struct Task
 	 */
 	TaskQuery taskQuery;
 
+	StringInfo savedPlan;
+
 	Oid anchorDistributedTableId;     /* only applies to insert tasks */
 	uint64 anchorShardId;       /* only applies to compute tasks */
 	List *taskPlacementList;    /* only applies to compute tasks */

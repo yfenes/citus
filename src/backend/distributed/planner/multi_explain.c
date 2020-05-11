@@ -399,6 +399,27 @@ RemoteExplain(Task *task, ExplainState *es)
 
 	RemoteExplainPlan *remotePlan = (RemoteExplainPlan *) palloc0(
 		sizeof(RemoteExplainPlan));
+
+	if (es->analyze && task->savedPlan)
+	{
+		/* get the first token */
+		char *token = strtok(task->savedPlan->data, "\n");
+
+		/* walk through other tokens */
+		while (token != NULL)
+		{
+			StringInfo line = makeStringInfo();
+			appendStringInfoString(line, token);
+			remotePlan->explainOutputList = lappend(remotePlan->explainOutputList, line);
+
+			token = strtok(NULL, "\n");
+		}
+
+		remotePlan->placementIndex = 0;
+
+		return remotePlan;
+	}
+
 	StringInfo explainQuery = BuildRemoteExplainQuery(TaskQueryStringForAllPlacements(
 														  task),
 													  es);
@@ -679,5 +700,3 @@ ExplainOneQuery(Query *query, int cursorOptions,
 					   &planduration);
 	}
 }
-
-
