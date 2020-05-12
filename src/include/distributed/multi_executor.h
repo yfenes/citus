@@ -69,6 +69,9 @@ extern bool SortReturning;
 extern int ExecutorLevel;
 
 
+extern void CitusExplainOneQuery(Query *query, int cursorOptions, IntoClause *into,
+					ExplainState *es, const char *queryString, ParamListInfo params,
+					QueryEnvironment *queryEnv);
 extern void CitusExecutorStart(QueryDesc *queryDesc, int eflags);
 extern void CitusExecutorRun(QueryDesc *queryDesc, ScanDirection direction, uint64 count,
 							 bool execute_once);

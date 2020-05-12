@@ -42,6 +42,7 @@
 #include "nodes/nodeFuncs.h"
 #include "parser/parsetree.h"
 #include "parser/parse_oper.h"
+#include "portability/instr_time.h"
 #include "storage/lmgr.h"
 #include "tcop/dest.h"
 #include "tcop/pquery.h"
@@ -69,9 +70,20 @@ bool SortReturning = false;
  */
 int ExecutorLevel = 0;
 
-bool SaveExplainPlans = true;
-StringInfo SavedExplainPlan = NULL;
+typedef struct {
+	int verbose;
+	int costs;
+	int buffers;
+	int timing;
+	int summary;
+	ExplainFormat format;
+} ExplainOptions;
 
+static bool SaveTaskExplainPlans = false;
+static ExplainOptions TaskExplainOptions = {0, 0, 0, 0, 0, EXPLAIN_FORMAT_TEXT};
+static StringInfo SavedExplainPlan = NULL;
+
+static ExplainOptions CurrentExplainOptions = {0, 0, 0, 0, 0, EXPLAIN_FORMAT_TEXT};
 
 /* local function forward declarations */
 static Relation StubRelation(TupleDesc tupleDescriptor);
@@ -86,7 +98,7 @@ SaveQueryExplain(QueryDesc *queryDesc, int eflags)
 {
 	PlannedStmt *plannedStmt = queryDesc->plannedstmt;
 
-	return SaveExplainPlans &&
+	return SaveTaskExplainPlans &&
 			ExecutorLevel == 0 &&
 			!IsParallelWorker() &&
 			(eflags & EXEC_FLAG_EXPLAIN_ONLY) == 0 &&
@@ -106,6 +118,50 @@ last_saved_plan(PG_FUNCTION_ARGS)
 	{
 		PG_RETURN_TEXT_P(cstring_to_text(SavedExplainPlan->data));
 	}
+}
+
+PG_FUNCTION_INFO_V1(save_explain_output_for_next_query);
+Datum
+save_explain_output_for_next_query(PG_FUNCTION_ARGS)
+{
+	SaveTaskExplainPlans = PG_GETARG_BOOL(0);
+	TaskExplainOptions.verbose = PG_GETARG_BOOL(1);
+	TaskExplainOptions.costs = PG_GETARG_BOOL(2);
+	TaskExplainOptions.timing = PG_GETARG_BOOL(3);
+	TaskExplainOptions.summary = PG_GETARG_BOOL(4);
+	TaskExplainOptions.format = (ExplainFormat) PG_GETARG_INT32(5);
+
+	PG_RETURN_VOID();
+}
+
+void
+CitusExplainOneQuery(Query *query, int cursorOptions, IntoClause *into,
+					 ExplainState *es, const char *queryString, ParamListInfo params,
+					 QueryEnvironment *queryEnv)
+{
+	CurrentExplainOptions.costs = es->costs;
+	CurrentExplainOptions.buffers = es->buffers;
+	CurrentExplainOptions.verbose = es->verbose;
+	CurrentExplainOptions.summary = es->summary;
+	CurrentExplainOptions.timing = es->timing;
+	CurrentExplainOptions.format = es->format;
+
+	/* rest is copied from ExplainOneQuery() */
+	PlannedStmt *plan;
+	instr_time	planstart,
+				planduration;
+
+	INSTR_TIME_SET_CURRENT(planstart);
+
+	/* plan the query */
+	plan = pg_plan_query(query, cursorOptions, params);
+
+	INSTR_TIME_SET_CURRENT(planduration);
+	INSTR_TIME_SUBTRACT(planduration, planstart);
+
+	/* run it (if needed) and produce output */
+	ExplainOnePlan(plan, into, es, queryString, params, queryEnv,
+					&planduration);
 }
 
 /*
@@ -298,11 +354,11 @@ CitusExecutorEnd(QueryDesc *queryDesc)
 	ExplainState *es = NewExplainState();
 
 	es->analyze = true;
-	es->verbose = true;
-	es->buffers = true;
-	es->timing = true;
-	es->summary = es->analyze;
-	es->format = EXPLAIN_FORMAT_TEXT;
+	es->verbose = TaskExplainOptions.verbose;
+	es->buffers = TaskExplainOptions.buffers;
+	es->timing = TaskExplainOptions.timing;
+	es->summary = TaskExplainOptions.summary;
+	es->format = TaskExplainOptions.format;
 	es->settings = false;
 
 	ExplainBeginOutput(es);
@@ -321,6 +377,7 @@ CitusExecutorEnd(QueryDesc *queryDesc)
 	MemoryContextSwitchTo(oldContext);
 
 	pfree(es->str->data);
+	SaveTaskExplainPlans = false;
 
 	standard_ExecutorEnd(queryDesc);
 }
