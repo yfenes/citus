@@ -16,4 +16,8 @@
 extern bool ExplainDistributedQueries;
 extern bool ExplainAllTasks;
 
+
+extern void InstallExplainAnalyzeHooks(List *taskList);
+extern bool RequestedForExplainPlan(CustomScanState *node);
+
 #endif /* MULTI_EXPLAIN_H */

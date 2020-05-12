@@ -3063,28 +3063,13 @@ TransactionStateMachine(WorkerSession *session)
 				if (session->currentTask != NULL)
 				{
 					TaskPlacementExecution *placementExecution = session->currentTask;
+					Task *task = placementExecution->shardCommandExecution->task;
 					bool succeeded = true;
 
-					PGresult *planResult = NULL;
-					int execResult = ExecuteOptionalRemoteCommand(connection, "SELECT last_saved_plan();", &planResult);
-					if (execResult == RESPONSE_OKAY)
+					if (task->postExecutionHook != NULL)
 					{
-						List *planList = ReadFirstColumnAsText(planResult);
-						StringInfo remotePlan = (StringInfo) linitial(planList);
-
-						StringInfo *savedPlan = &placementExecution->shardCommandExecution->task->savedPlan;
-						*savedPlan = makeStringInfo();
-						appendStringInfoString(*savedPlan, remotePlan->data);
-
-						PQclear(planResult);
+						task->postExecutionHook(task, connection);
 					}
-					else
-					{
-						elog(WARNING, "failed to fetch remote plan");
-					}
-
-
-					ClearResults(connection, false);
 
 					/*
 					 * Once we finished a task on a connection, we no longer
@@ -3356,6 +3341,11 @@ StartPlacementExecutionOnSession(TaskPlacementExecution *placementExecution,
 	ShardPlacement *taskPlacement = placementExecution->shardPlacement;
 	List *placementAccessList = PlacementAccessListForTask(task, taskPlacement);
 	int querySent = 0;
+
+	if (task->preExecutionHook != NULL)
+	{
+		task->preExecutionHook(task, connection);
+	}
 
 	char *queryString = TaskQueryStringForPlacement(task,
 													placementExecution->

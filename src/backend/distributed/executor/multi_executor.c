@@ -359,7 +359,6 @@ CitusExecutorEnd(QueryDesc *queryDesc)
 	es->timing = TaskExplainOptions.timing;
 	es->summary = TaskExplainOptions.summary;
 	es->format = TaskExplainOptions.format;
-	es->settings = false;
 
 	ExplainBeginOutput(es);
 	ExplainPrintPlan(es, queryDesc);

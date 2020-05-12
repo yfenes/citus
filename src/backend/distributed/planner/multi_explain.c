@@ -88,13 +88,14 @@ static void ExplainTask(Task *task, int placementIndex, List *explainOutputList,
 static void ExplainTaskPlacement(ShardPlacement *taskPlacement, List *explainOutputList,
 								 ExplainState *es);
 static StringInfo BuildRemoteExplainQuery(char *queryString, ExplainState *es);
+static void SendExplainParams(Task *task, MultiConnection *connection);
+static void FetchTaskExplainPlan(Task *task, MultiConnection *connection);
 
 /* Static Explain functions copied from explain.c */
 static void ExplainOneQuery(Query *query, int cursorOptions,
 							IntoClause *into, ExplainState *es,
 							const char *queryString, ParamListInfo params,
 							QueryEnvironment *queryEnv);
-
 
 /*
  * CitusExplainScan is a custom scan explain callback function which is used to
@@ -415,6 +416,9 @@ RemoteExplain(Task *task, ExplainState *es)
 			token = strtok(NULL, "\n");
 		}
 
+		StringInfo line = makeStringInfo();
+		remotePlan->explainOutputList = lappend(remotePlan->explainOutputList, line);
+
 		remotePlan->placementIndex = 0;
 
 		return remotePlan;
@@ -657,6 +661,60 @@ BuildRemoteExplainQuery(char *queryString, ExplainState *es)
 					 queryString);
 
 	return explainQuery;
+}
+
+
+bool
+RequestedForExplainPlan(CustomScanState *node)
+{
+	return (node->ss.ps.state->es_instrument != 0);
+}
+
+
+void
+InstallExplainAnalyzeHooks(List *taskList)
+{
+	Task *task = NULL;
+	foreach_ptr(task, taskList)
+	{
+		task->preExecutionHook = SendExplainParams;
+		task->postExecutionHook = FetchTaskExplainPlan;
+	}
+}
+
+static void
+SendExplainParams(Task *task, MultiConnection *connection)
+{
+	const char *query = "SELECT save_explain_output_for_next_query(true, false, true, true, false, 0)";
+	int execResult = ExecuteOptionalRemoteCommand(connection, query, NULL);
+	if (execResult != RESPONSE_OKAY)
+	{
+		elog(WARNING, "failed to send explain params");
+	}
+}
+
+
+static void
+FetchTaskExplainPlan(Task *task, MultiConnection *connection)
+{
+	PGresult *planResult = NULL;
+	int execResult = ExecuteOptionalRemoteCommand(connection, "SELECT last_saved_plan();", &planResult);
+	if (execResult == RESPONSE_OKAY)
+	{
+		List *planList = ReadFirstColumnAsText(planResult);
+		StringInfo remotePlan = (StringInfo) linitial(planList);
+
+		task->savedPlan = makeStringInfo();
+		appendStringInfoString(task->savedPlan, remotePlan->data);
+
+		PQclear(planResult);
+	}
+	else
+	{
+		elog(WARNING, "failed to fetch remote plan");
+	}
+
+	ClearResults(connection, false);
 }
 
 

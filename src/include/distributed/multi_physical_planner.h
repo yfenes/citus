@@ -259,8 +259,11 @@ typedef struct TaskQuery
 		 * when we want to access each query string.
 		 */
 		List *queryStringList;
-	}data;
-}TaskQuery;
+	} data;
+} TaskQuery;
+
+typedef struct MultiConnection MultiConnection;
+typedef struct Task Task;
 
 typedef struct Task
 {
@@ -325,6 +328,15 @@ typedef struct Task
 	 * query.
 	 */
 	bool parametersInQueryStringResolved;
+
+
+	/*
+	 * Hooks to execute just before and just after the task is executed. Currently
+	 * these are used for EXPLAIN ANALYZE. "connection" is the connection on which
+	 * task is executed.
+	 */
+	void (*preExecutionHook)(Task *task, MultiConnection *connection);
+	void (*postExecutionHook)(Task *task, MultiConnection *connection);
 } Task;
 
 
